@@ -9,9 +9,11 @@ config/thc.toml
 .env
 
 # Logs et données locales
+logs/
 *.log
 local_storage/
 .thc_backups/
+dev-storage/
 
 # Éditeur
 .vscode/

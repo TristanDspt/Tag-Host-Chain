@@ -7,7 +7,7 @@
 Un **wrapper** lancé par Steam qui entoure le jeu :
 
 ```
-Steam ──► uv run thc.py -- %command%
+Steam ──► uv run run.py -- %command%
                 │
                 ├─ 1. prendre le lock
                 ├─ 2. pull (backup local avant d'écraser)
@@ -24,12 +24,13 @@ THC. C'est le lock qui désigne l'hôte.
 
 ```
 Tag-Host-Chain/
-├── thc.py                  # point d'entrée mince (uv run thc.py -- %command%)
+├── run.py                  # point d'entrée : main() enchaîne les étapes (uv run run.py -- %command%)
 ├── requirements.txt
 ├── README.md  ROADMAP.md  ARCHITECTURE.md  CLAUDE_CONTEXT.md
 ├── thc/
-│   ├── cli.py              # sous-commandes : run (défaut), status, unlock, restore
+│   ├── cli.py              # lecture de la ligne de commande (sous-commandes unlock, restore... plus tard)
 │   ├── config.py           # lecture de la config joueur (TOML)
+│   ├── constants.py        # réglages du développeur (constantes)
 │   ├── profiles.py         # profils de jeu (fichiers de la save), en Python
 │   ├── runner.py           # lancement du jeu, attente, stabilité des fichiers
 │   ├── sync.py             # collecte, manifeste, pull, push
@@ -42,6 +43,8 @@ Tag-Host-Chain/
 │       └── r2.py           # backend Cloudflare R2 (boto3)
 ├── config/
 │   └── thc.example.toml    # modèle de config (la vraie config thc.toml n'est PAS dans git)
+├── dev-storage/            # « bucket » local de développement (hors git)
+├── logs/                   # journal de THC (hors git, créé au premier lancement)
 ├── tests/
 │   └── fake_game.py        # faux jeu : modifie un faux world0.ksd puis se termine
 └── tools/
@@ -52,7 +55,10 @@ Tag-Host-Chain/
 
 | Module | Responsabilité |
 |---|---|
-| `cli` | Lit la ligne de commande, choisit l'action, retire le `--` en tête |
+| `run.py` | Point d'entrée : démarre les logs, charge la config, enchaîne les étapes (lock, pull, jeu, push, unlock). Si une étape échoue, le jeu n'est pas lancé |
+| `cli` | Lit la ligne de commande : options de THC avant le premier `--`, commande du jeu après |
+| `constants` | Réglages du développeur : rotation des logs, backends gérés, dossier de stockage local ; plus tard nombre de versions gardées et délai de lock périmé |
+| `log` | Journal `logs/thc.log` avec rotation, plus écho sur la console. Les modules font `logging.getLogger(__name__)` (`run.py` : `"thc.run"`, car son `__name__` vaut `__main__`) |
 | `config` | Charge la config du joueur ; chemins absolus, jamais relatifs au dossier courant |
 | `profiles` | Décrit un jeu : motifs des fichiers à synchroniser. Ne connaît pas le dossier de save (il vient de la config) |
 | `runner` | Lance la commande du jeu, attend sa fin, puis la stabilité des fichiers de save |
@@ -86,6 +92,19 @@ La clé du monde est dérivée de la config : jeu + slot (par exemple `enshroude
   pousser** sans confirmation.
 - `thc unlock` : libération manuelle.
 
+## Démarrage et erreurs
+
+1. Lecture de la ligne de commande (`cli`) : options de THC avant le premier `--`, commande du
+   jeu après.
+2. Démarrage des logs, **avant** la config : une config cassée est aussi dans le fichier.
+3. Chargement et validation de la config (`ConfigError` avec un message pour le joueur).
+4. (J3) Garde-fou : si la variable d'environnement `SteamAppId` existe et ne correspond pas au
+   `steam_app_id` du profil, arrêt avant tout pull ou push.
+5. Étapes de synchro et lancement du jeu (jalons suivants).
+
+Toute erreur de THC (prévue ou non) est écrite dans les logs et donne le code de sortie 1 ; le
+jeu n'est **pas** lancé, pour ne pas jouer sur une save périmée.
+
 ## Synchro : règles
 
 - Pull au lancement, backup local avant d'écraser.
@@ -104,15 +123,20 @@ La clé du monde est dérivée de la config : jeu + slot (par exemple `enshroude
 |---|---|
 | `player` | Nom du joueur |
 | `game` | Profil à utiliser (`enshrouded`) |
-| `save_dir` | Dossier de save sur cette machine (Windows ou Proton). **Obligatoire**, aucun défaut |
+| `save_dir` | Dossier de save sur cette machine (Windows ou Proton). Chemin absolu (`~` accepté), dossier existant. **Obligatoire**, aucun défaut |
 | `slot` | Numéro du slot de monde (entier, `0` pour `world0.ksd`) ; la clé de stockage en est dérivée |
-| `storage.backend` | `local` ou `r2` |
-| `storage.*` | Dossier local, ou endpoint, bucket, clés R2 |
-| `backups.keep` | Nombre de versions gardées |
-| `lock.stale_after_min` | Délai avant de considérer le lock mort |
-| `log_dir` | Dossier des logs (optionnel ; par défaut `logs/` à côté de `thc.py`) |
+| `storage.backend` | `local` (développement : dossier `dev-storage/`) ou `r2` |
+| `storage.r2.*` | (jalon J5) endpoint, bucket, clés d'accès du joueur : secrets, jamais dans git |
 
-## Profil Enshrouded (format 1.0, vérifié sur le dossier)
+**Règle** : les réglages du **joueur** sont dans `config/thc.toml` (hors git) ; les réglages du
+**développeur** sont des constantes dans `thc/constants.py` (rotation des logs, backends gérés,
+dossier de stockage local `dev-storage/` ; à venir : nombre de versions gardées = 5, délai avant
+lock périmé = 10 min, provisoire). Les autres modules les prennent comme valeurs par défaut de
+leurs paramètres ; les tests passent des valeurs courtes en paramètre. Pas de réglage de backups,
+de lock ni de dossier de logs dans la config du joueur : les logs vont toujours dans `logs/` à
+côté de `run.py`.
+
+## Profil Enshrouded (format 1.0, vérifié sur la machine de référence)
 
 - Un monde = un seul fichier `world<N>.ksd` (N = numéro de slot, `0` à `9` d'après les guides
   d'hébergeurs). Les trois joueurs utilisent `world0`. Motif : `world{slot}.ksd`.
@@ -120,7 +144,7 @@ La clé du monde est dérivée de la config : jeu + slot (par exemple `enshroude
   `global.ksd` (contenu inconnu, à examiner au J3), `user_settings.json` (réglages) et le
   dossier `backup/` du jeu (dix copies tournantes `*.backup-0` à `-9`). THC a ses propres
   backups.
-- Emplacement par défaut : `<disque>:\Steam\userdata\<ID>\1203620\remote`, avec Steam Cloud
+- Emplacement sur la machine de référence : `<disque>:\Steam\userdata\<ID>\1203620\remote`, avec Steam Cloud
   coupé. Pas de dossier `Saved Games`. Le chemin change d'une machine à l'autre : d'où
   `save_dir` obligatoire.
 - L'ancien format (Early Access : fichiers `<hex>`, `<hex>-1`…, `-index`, décrit par le code de
@@ -128,8 +152,8 @@ La clé du monde est dérivée de la config : jeu + slot (par exemple `enshroude
 
 ## Risques et inconnues
 
-- Interaction avec **Steam Cloud** : il doit rester coupé, sinon deux écrivains sur le même
-  dossier.
+- Interaction avec **Steam Cloud** : il doit rester coupé chez les trois, sinon deux écrivains
+  sur le même dossier. À vérifier chez les frères.
 - **Format de save** : changé avec la 1.0 (octobre 2026), il peut changer encore. Revérifier
   le profil après les grosses mises à jour du jeu.
 - Forme de `%command%` sous **Proton**, nom du processus, chemin de la save sous Linux

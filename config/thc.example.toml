@@ -1,0 +1,39 @@
+# config/thc.example.toml
+
+# Modèle de config pour THC.
+#
+# Copie ce fichier en config/thc.toml puis adapte-le à ta machine.
+# config/thc.toml est dans .gitignore : il ne doit JAMAIS être commité
+# (il contiendra des clés d'accès quand le stockage R2 sera en place).
+#
+# Chemins Windows : garde les apostrophes ('...'). Entre apostrophes, le
+# backslash \ est écrit tel quel. Entre guillemets ("..."), il faudrait le doubler.
+# Utilise toujours des chemins absolus.
+
+# Ton nom : il apparaîtra dans le lock et le manifeste (« lock de joueur1 depuis... »).
+player = "joueur1"
+
+# Le jeu à synchroniser (un profil du même nom doit exister dans thc/profiles.py).
+game = "enshrouded"
+
+# Dossier où le jeu écrit sa save sur CETTE machine. Obligatoire, pas de défaut :
+# le chemin change d'une machine à l'autre (disque, ID Steam, système).
+#
+# Windows (Steam Cloud coupé) :
+save_dir = 'C:\Program Files (x86)\Steam\userdata\<ID>\1203620\remote'
+# Linux (hypothèse à vérifier au J6, le chemin exact dépend de ton installation Steam) :
+# save_dir = '/home/<toi>/.local/share/Steam/userdata/<ton-id-steam>/1203620/remote'
+
+# Numéro du slot de monde : 0 pour world0.ksd. Entier, sans guillemets.
+slot = 0
+
+[storage]
+# "local" : un dossier sur ton disque (développement et tests).
+# "r2" : Cloudflare R2 (section [storage.r2], ajoutée au jalon J5).
+backend = "local"
+
+[storage.r2]
+endpoint = "..."
+bucket = "..."
+access_key_id = "..."
+secret_access_key = "..."
