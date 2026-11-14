@@ -38,6 +38,9 @@ lock simple et backups, pour Enshrouded seulement.*
 
 - [x] Test de plomberie Windows : Steam transmet `-- <chemin du jeu>`, le wrapper attend
   la fin du jeu (227 s mesurées), uv installe boto3 dans un environnement isolé
+- [x] Test du kill (2026-11-14) : jeu tué depuis le gestionnaire des tâches, le wrapper survit,
+  note la fin (code de sortie 1) et reprend la main. Conséquence : le **code de sortie du jeu
+  n'influence pas le push** (seul compte : les fichiers ont-ils changé ?)
 
 ## Backlog
 
@@ -56,3 +59,6 @@ lock simple et backups, pour Enshrouded seulement.*
   chemin de la save dans le prefix. À tester chez le frère sous Linux.
 - **R2** : inscription (carte bancaire demandée ?), droits minimaux des clés d'accès.
 - **Durée avant lock considéré mort** (valeur par défaut à choisir).
+- **Fichiers corrompus après un kill** : un jeu tué en pleine écriture peut laisser une save
+  incohérente. Le push ne doit jamais écraser `history/` ; à évaluer au J2 / J3 (validation
+  minimale avant push ?).
