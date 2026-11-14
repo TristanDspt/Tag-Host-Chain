@@ -26,7 +26,7 @@ CONSOLE_FORMAT = "[THC] %(levelname)-7s %(message)s"
 
 
 def default_log_dir() -> Path:
-    """Dossier logs/ à la racine du repo, à côté de thc.py.
+    """Dossier logs/ à la racine du repo, à côté de run.py.
 
     Calculé depuis l'emplacement de CE fichier, pas depuis le dossier courant :
     Steam lance le wrapper avec le dossier du jeu comme dossier courant.

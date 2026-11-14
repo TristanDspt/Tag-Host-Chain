@@ -20,20 +20,21 @@ game = "enshrouded"
 # le chemin change d'une machine à l'autre (disque, ID Steam, système).
 #
 # Windows (Steam Cloud coupé) :
-save_dir = 'C:\Program Files (x86)\Steam\userdata\<ID>\1203620\remote'
+save_dir = 'C:\Steam\userdata\<ID>\1203620\remote'
 # Linux (hypothèse à vérifier au J6, le chemin exact dépend de ton installation Steam) :
-# save_dir = '/home/<toi>/.local/share/Steam/userdata/<ton-id-steam>/1203620/remote'
+# save_dir = '/home/<toi>/.local/share/Steam/userdata/<ID>/1203620/remote'
 
 # Numéro du slot de monde : 0 pour world0.ksd. Entier, sans guillemets.
 slot = 0
 
 [storage]
-# "local" : un dossier sur ton disque (développement et tests).
-# "r2" : Cloudflare R2 (section [storage.r2], ajoutée au jalon J5).
+# "local" : dossier de développement dev-storage/ (développement et tests).
+# "r2" : Cloudflare R2 (jalon J5).
 backend = "local"
 
-[storage.r2]
-endpoint = "..."
-bucket = "..."
-access_key_id = "..."
-secret_access_key = "..."
+# Jalon J5 : accès R2 de CE joueur (secrets, ne jamais les commiter ni les partager).
+# [storage.r2]
+# endpoint = "https://<account-id>.r2.cloudflarestorage.com"
+# bucket = "<nom-du-bucket>"
+# access_key_id = "<à remplir>"
+# secret_access_key = "<à remplir>"

@@ -6,7 +6,7 @@ Lit le fichier TOML, vérifie chaque champ et renvoie un objet Config prêt à
 l'emploi. Toute erreur (fichier absent, champ manquant, mauvais type, chemin
 relatif...) lève ConfigError avec un message écrit pour le joueur.
 
-Les erreurs de config sont des exceptions (ConfigError) que cli.py affiche et
+Les erreurs de config sont des exceptions (ConfigError) que run.py affiche et
 écrit dans les logs.
 """
 
@@ -97,7 +97,7 @@ def _build_config(data: dict[str, Any]) -> Config:
         )
     return Config(
         player=player,
-        game=game,
+        game=profile.name,  # nom normalisé (« Enshrouded » -> « enshrouded »)
         save_dir=save_dir,
         slot=slot,
         storage=StorageConfig(backend=backend),
