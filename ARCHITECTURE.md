@@ -30,7 +30,7 @@ Tag-Host-Chain/
 ├── thc/
 │   ├── cli.py              # sous-commandes : run (défaut), status, unlock, restore
 │   ├── config.py           # lecture de la config joueur (TOML)
-│   ├── profiles.py         # profils de jeu (chemin de save, motifs de fichiers)
+│   ├── profiles.py         # profils de jeu (fichiers de la save), en Python
 │   ├── runner.py           # lancement du jeu, attente, stabilité des fichiers
 │   ├── sync.py             # collecte, manifeste, pull, push
 │   ├── lock.py             # prise, battement, libération, détection de lock mort
@@ -41,11 +41,9 @@ Tag-Host-Chain/
 │       ├── local.py        # backend dossier local (dev et tests)
 │       └── r2.py           # backend Cloudflare R2 (boto3)
 ├── config/
-│   ├── thc.example.toml    # modèle de config (la vraie config n'est PAS dans git)
-│   └── games/
-│       └── enshrouded.toml # profil de jeu
+│   └── thc.example.toml    # modèle de config (la vraie config thc.toml n'est PAS dans git)
 ├── tests/
-│   └── fake_game.py        # faux jeu : modifie des fichiers de save factices puis se termine
+│   └── fake_game.py        # faux jeu : modifie un faux world0.ksd puis se termine
 └── tools/
     └── test_launch.py      # test de plomberie Steam + uv
 ```
@@ -56,7 +54,7 @@ Tag-Host-Chain/
 |---|---|
 | `cli` | Lit la ligne de commande, choisit l'action, retire le `--` en tête |
 | `config` | Charge la config du joueur ; chemins absolus, jamais relatifs au dossier courant |
-| `profiles` | Décrit un jeu : dossier de save par OS, motifs de fichiers à synchroniser |
+| `profiles` | Décrit un jeu : motifs des fichiers à synchroniser. Ne connaît pas le dossier de save (il vient de la config) |
 | `runner` | Lance la commande du jeu, attend sa fin, puis la stabilité des fichiers de save |
 | `sync` | Construit la liste des fichiers du monde et un manifeste (hash, auteur, date) ; pull et push |
 | `lock` | Crée le lock si absent, le met à jour régulièrement, le libère, juge s'il est mort |
@@ -65,12 +63,14 @@ Tag-Host-Chain/
 
 ## Organisation du stockage
 
+La clé du monde est dérivée de la config : jeu + slot (par exemple `enshrouded-slot0`).
+
 ```
 <bucket>/
-└── worlds/<world_id>/
+└── worlds/<clé du monde>/
     ├── lock.json            # propriétaire, date de prise, dernier battement
     ├── manifest.json        # version courante : auteur, date, hash de chaque fichier
-    ├── current/<fichiers>   # dernière version poussée
+    ├── current/<fichiers>   # dernière version poussée (Enshrouded : world0.ksd)
     └── history/<horodatage>/<fichiers>   # N versions précédentes
 ```
 
@@ -89,10 +89,12 @@ Tag-Host-Chain/
 ## Synchro : règles
 
 - Pull au lancement, backup local avant d'écraser.
-- Push à la fermeture seulement si l'ensemble des fichiers du monde a changé
-  (comparaison de hash avec le manifeste tiré au lancement).
+- Push à la fermeture seulement si le **contenu** des fichiers du monde a changé
+  (comparaison de hash avec le manifeste tiré au lancement). Jamais la date de modification :
+  le jeu réécrit ses fichiers à chaque fermeture, même sans changement réel.
 - Avant le push : attendre que la date de modification des fichiers soit stable
-  (même idée que Hearth : ~4 s sans changement, 60 s maximum).
+  (même idée que Hearth : ~4 s sans changement, 60 s maximum). Ici la date sert à détecter
+  que le jeu a fini d'écrire, pas à décider s'il faut pousser.
 - Le jeu qui plante n'empêche pas le push : le wrapper survit au jeu.
 - Le wrapper qui meurt (coupure, kill) laisse un lock périmé, géré ci-dessus.
 
@@ -102,24 +104,36 @@ Tag-Host-Chain/
 |---|---|
 | `player` | Nom du joueur |
 | `game` | Profil à utiliser (`enshrouded`) |
-| `save_dir` | Dossier de save sur cette machine (Windows ou Proton) |
-| `world_id` | Identifiant du monde, par exemple le hex du slot Enshrouded |
+| `save_dir` | Dossier de save sur cette machine (Windows ou Proton). **Obligatoire**, aucun défaut |
+| `slot` | Numéro du slot de monde (entier, `0` pour `world0.ksd`) ; la clé de stockage en est dérivée |
 | `storage.backend` | `local` ou `r2` |
 | `storage.*` | Dossier local, ou endpoint, bucket, clés R2 |
 | `backups.keep` | Nombre de versions gardées |
 | `lock.stale_after_min` | Délai avant de considérer le lock mort |
+| `log_dir` | Dossier des logs (optionnel ; par défaut `logs/` à côté de `thc.py`) |
 
-## Profil Enshrouded (connu grâce au code de Hearth)
+## Profil Enshrouded (format 1.0, vérifié sur le dossier)
 
-Pour un slot d'ID hex `H` : `H`, `H-1` à `H-9`, `H_info`, `H_info-1`…, `H-index`,
-`H_info-index`. Il faut **tous** les copier (les fichiers `-index` pointent vers la
-version numérotée à charger). Ne pas toucher au fichier des personnages, propre à chaque
-joueur. Motif retenu : `<hex>*` dans le dossier de save.
+- Un monde = un seul fichier `world<N>.ksd` (N = numéro de slot, `0` à `9` d'après les guides
+  d'hébergeurs). Les trois joueurs utilisent `world0`. Motif : `world{slot}.ksd`.
+- **Seul ce fichier est synchronisé.** Restent locaux : `character<N>.ksd` (personnages),
+  `global.ksd` (contenu inconnu, à examiner au J3), `user_settings.json` (réglages) et le
+  dossier `backup/` du jeu (dix copies tournantes `*.backup-0` à `-9`). THC a ses propres
+  backups.
+- Emplacement par défaut : `<disque>:\Steam\userdata\<ID>\1203620\remote`, avec Steam Cloud
+  coupé. Pas de dossier `Saved Games`. Le chemin change d'une machine à l'autre : d'où
+  `save_dir` obligatoire.
+- L'ancien format (Early Access : fichiers `<hex>`, `<hex>-1`…, `-index`, décrit par le code de
+  Hearth) n'est plus d'actualité.
 
 ## Risques et inconnues
 
-- Interaction avec **Steam Cloud** (ordre pull / synchro Steam, chemin de save).
-- Forme de `%command%` sous **Proton**, nom du processus, chemin de la save.
+- Interaction avec **Steam Cloud** : il doit rester coupé, sinon deux écrivains sur le même
+  dossier.
+- **Format de save** : changé avec la 1.0 (octobre 2026), il peut changer encore. Revérifier
+  le profil après les grosses mises à jour du jeu.
+- Forme de `%command%` sous **Proton**, nom du processus, chemin de la save sous Linux
+  (hypothèse : `userdata` dans l'installation Steam native, à vérifier).
 - Fuite de clés R2 : la config réelle et les logs sont dans `.gitignore`, jamais commités.
 - Deux joueurs en solo en même temps : couvert par le lock (le second est refusé).
 - Dépendance à uv et à Internet au premier lancement.
