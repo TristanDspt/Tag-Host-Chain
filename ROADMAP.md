@@ -57,7 +57,11 @@ lock simple et backups, pour Enshrouded seulement.*
   bascule, avec une vraie save (J3).
 - **Linux/Proton** : forme exacte de `%command%` (chemins Proton), nom du processus,
   chemin de la save dans le prefix. À tester chez le frère sous Linux.
-- **R2** : inscription (carte bancaire demandée ?), droits minimaux des clés d'accès.
+- **R2** : compte Cloudflare créé (connexion via GitHub, 2026-11-14). R2 demande un moyen de
+  paiement à l'activation (carte ou PayPal), rien n'est facturé dans l'offre gratuite.
+  **Décision reportée à J5**, à discuter avec les frères (qui porte le compte, ce que chacun
+  accepte ou refuse). Plan B si refus de tout moyen de paiement : revoir le stockage.
+  Reste à définir les droits minimaux des clés d'accès.
 - **Durée avant lock considéré mort** (valeur par défaut à choisir).
 - **Fichiers corrompus après un kill** : un jeu tué en pleine écriture peut laisser une save
   incohérente. Le push ne doit jamais écraser `history/` ; à évaluer au J2 / J3 (validation
