@@ -1,0 +1,10 @@
+# Tag Host Chain : dépendances d'exécution
+# Lancement : uv run --with-requirements requirements.txt thc.py -- %command%
+boto3>=1.35   # API S3 (Cloudflare R2). Écriture conditionnelle (If-None-Match) requise.
+
+# Bibliothèque standard utilisée (rien à installer) :
+#   tomllib (config, Python >= 3.11), pathlib, subprocess, hashlib, json, logging
+
+# --- Développement (décommenter au besoin) ---
+# pytest
+# ruff

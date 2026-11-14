@@ -1,0 +1,18 @@
+# Environnements
+.venv/
+__pycache__/
+*.pyc
+
+# Config réelle et secrets (le modèle config/thc.example.toml, lui, est versionné)
+config/thc.toml
+*.local.toml
+.env
+
+# Logs et données locales
+*.log
+local_storage/
+.thc_backups/
+
+# Éditeur
+.vscode/
+.idea/
